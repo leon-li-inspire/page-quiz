@@ -1,0 +1,554 @@
+/* ── Color Palette (shared with main app) ── */
+:root {
+    --color-primary: #6c5ce7;
+    --color-primary-light: #a29bfe;
+    --color-primary-dark: #5a4bd1;
+    --color-secondary: #00b894;
+    --color-secondary-light: #55efc4;
+    --color-accent: #fdcb6e;
+    --color-accent-light: #ffeaa7;
+    --color-error: #e17055;
+    --color-error-light: #fab1a0;
+    --color-bg: #f8f9fa;
+    --color-card: #ffffff;
+    --color-text: #2d3436;
+    --color-subtle: #636e72;
+    --color-border: #dfe6e9;
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-full: 9999px;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+    --shadow-glow: 0 4px 20px rgba(108, 92, 231, 0.25);
+
+    --transition-fast: 150ms ease;
+    --transition-normal: 250ms ease;
+    --transition-slow: 400ms ease;
+}
+
+/* ── Reset & Base ── */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+}
+
+/* ── Page Layout ── */
+.options-page {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+}
+
+/* ── Main Card ── */
+.options-card {
+    width: 100%;
+    max-width: 600px;
+    background: var(--color-card);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    padding: 40px 36px;
+    animation: cardFadeIn var(--transition-slow) ease forwards;
+    position: relative;
+}
+
+@keyframes cardFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Header ── */
+.options-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.options-header__title {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--color-text);
+    letter-spacing: -0.3px;
+}
+
+.options-header__subtitle {
+    font-size: 14px;
+    color: var(--color-subtle);
+    margin-top: 6px;
+}
+
+/* ── Section ── */
+.options-section {
+    margin-bottom: 28px;
+}
+
+.options-section__label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 10px;
+}
+
+/* ── Provider Tiles ── */
+.provider-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.provider-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px 8px;
+    background: var(--color-bg);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    user-select: none;
+    position: relative;
+    font-family: inherit;
+}
+
+.provider-tile:hover {
+    border-color: var(--color-primary-light);
+    background: #f0eeff;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.provider-tile--active {
+    border-color: var(--color-primary);
+    background: #f0eeff;
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.15);
+}
+
+.provider-tile--active:hover {
+    border-color: var(--color-primary);
+}
+
+.provider-tile__emoji {
+    font-size: 28px;
+    line-height: 1;
+}
+
+.provider-tile__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+    text-align: center;
+    line-height: 1.2;
+}
+
+.provider-tile__check {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    background: var(--color-primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    animation: scaleInCheck var(--transition-fast) ease forwards;
+}
+
+@keyframes scaleInCheck {
+    from {
+        transform: scale(0);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ── Form Controls ── */
+
+/* ── Input Group (for password toggle) ── */
+.options-input-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.options-input {
+    width: 100%;
+    padding: 12px 48px 12px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--color-text);
+    background: var(--color-bg);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition:
+        border-color var(--transition-normal),
+        box-shadow var(--transition-normal);
+    outline: none;
+}
+
+.options-input::placeholder {
+    color: #b2bec3;
+}
+
+.options-input:hover {
+    border-color: var(--color-primary-light);
+}
+
+.options-input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.12);
+}
+
+.options-input--region {
+    padding-right: 14px;
+}
+
+/* ── Show/Hide Toggle for Password ── */
+.options-input-toggle {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    font-size: 18px;
+    color: var(--color-subtle);
+    border-radius: var(--radius-sm);
+    transition:
+        color var(--transition-fast),
+        background var(--transition-fast);
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.options-input-toggle:hover {
+    color: var(--color-primary);
+    background: rgba(108, 92, 231, 0.08);
+}
+
+/* ── Input Hint ── */
+.options-input-hint {
+    font-size: 12px;
+    color: var(--color-subtle);
+    margin-top: 6px;
+    line-height: 1.4;
+}
+
+/* ── Error Message ── */
+.options-error {
+    background: var(--color-error-light);
+    color: #c0392b;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: shakeIn 0.4s ease;
+}
+
+@keyframes shakeIn {
+    0% {
+        transform: translateX(-8px);
+        opacity: 0;
+    }
+    25% {
+        transform: translateX(6px);
+    }
+    50% {
+        transform: translateX(-4px);
+    }
+    75% {
+        transform: translateX(2px);
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ── Actions (Save Button Wrapper) ── */
+.options-actions {
+    margin-top: 4px;
+}
+
+/* ── Save Button ── */
+.options-save-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 28px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    background: linear-gradient(
+        135deg,
+        var(--color-primary),
+        var(--color-primary-dark)
+    );
+    border: none;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    box-shadow: var(--shadow-glow);
+    transition: all var(--transition-normal);
+    outline: none;
+    margin-top: 8px;
+}
+
+.options-save-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 28px rgba(108, 92, 231, 0.35);
+}
+
+.options-save-btn:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.options-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ── Save Button Spinner ── */
+.options-save-btn__spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Success Toast ── */
+.options-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    animation: toastSlideIn var(--transition-normal) ease forwards;
+    pointer-events: none;
+}
+
+.options-toast__inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 24px;
+    background: var(--color-secondary);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: var(--radius-full);
+    box-shadow: 0 8px 32px rgba(0, 184, 148, 0.35);
+    white-space: nowrap;
+}
+
+.options-toast__icon {
+    font-size: 18px;
+    line-height: 1;
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes toastSlideOut {
+    from {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px);
+    }
+}
+
+/* ── Loading State ── */
+.options-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 60px 20px;
+}
+
+.options-loading__spinner {
+    width: 36px;
+    height: 36px;
+    border: 3.5px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.options-loading__text {
+    font-size: 14px;
+    color: var(--color-subtle);
+    font-weight: 500;
+}
+
+/* ── Footer ── */
+.options-footer {
+    text-align: center;
+    margin-top: 28px;
+    font-size: 13px;
+    color: var(--color-subtle);
+}
+
+.options-footer a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.options-footer a:hover {
+    text-decoration: underline;
+}
+
+/* ── Section enter animation stagger ── */
+.options-section:nth-child(1) {
+    animation: sectionFadeIn 0.4s ease 0.05s both;
+}
+.options-section:nth-child(2) {
+    animation: sectionFadeIn 0.4s ease 0.1s both;
+}
+.options-section:nth-child(3) {
+    animation: sectionFadeIn 0.4s ease 0.15s both;
+}
+.options-section:nth-child(4) {
+    animation: sectionFadeIn 0.4s ease 0.2s both;
+}
+.options-section:nth-child(5) {
+    animation: sectionFadeIn 0.4s ease 0.25s both;
+}
+
+@keyframes sectionFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+    .options-page {
+        padding: 20px 12px 40px;
+    }
+
+    .options-card {
+        padding: 28px 20px;
+        border-radius: var(--radius-lg);
+    }
+
+    .options-header__title {
+        font-size: 22px;
+    }
+
+    .provider-tiles {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .provider-tile {
+        flex-direction: row;
+        padding: 14px 16px;
+        gap: 12px;
+    }
+
+    .provider-tile__emoji {
+        font-size: 24px;
+    }
+
+    .provider-tile__name {
+        font-size: 14px;
+    }
+
+    .provider-tile__check {
+        top: 50%;
+        transform: translateY(-50%);
+    }
+}
+
+@media (min-width: 481px) and (max-width: 640px) {
+    .options-card {
+        padding: 32px 24px;
+    }
+}
