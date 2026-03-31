@@ -1,3 +1,8 @@
+import * as pdfjsLib from "./pdf.min.mjs";
+
+// Configure pdf.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = "./pdf.worker.min.mjs";
+
 // Open side panel when extension icon is clicked
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
@@ -44,6 +49,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Check if a URL points to a PDF
+function isPdfUrl(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.pathname.toLowerCase().endsWith(".pdf");
+  } catch {
+    return false;
+  }
+}
+
+// Extract text from a PDF via pdf.js
+async function extractPdfText(url) {
+  // Strip any fragment (e.g. #page=2 or #:~:text=...)
+  const cleanUrl = url.split("#")[0];
+
+  const response = await fetch(cleanUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch PDF: ${response.status}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  let fullText = "";
+  const maxPages = Math.min(pdf.numPages, 30); // cap at 30 pages
+  for (let i = 1; i <= maxPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map((item) => item.str).join(" ");
+    fullText += pageText + "\n\n";
+  }
+
+  return fullText.trim();
+}
+
 // Extract page content by injecting a script into the active tab
 async function handleGetPageContent(sendResponse) {
   try {
@@ -53,6 +93,37 @@ async function handleGetPageContent(sendResponse) {
     });
     if (!tab) {
       sendResponse({ error: "No active tab found" });
+      return;
+    }
+
+    // Handle PDF files
+    if (isPdfUrl(tab.url)) {
+      try {
+        let content = await extractPdfText(tab.url);
+        content = content
+          .replace(/\n{3,}/g, "\n\n")
+          .replace(/[ \t]+/g, " ")
+          .trim()
+          .substring(0, 10000);
+
+        if (!content || content.length < 50) {
+          sendResponse({
+            error:
+              "Could not extract readable text from this PDF. It may be a scanned document or image-based PDF without embedded text.",
+          });
+          return;
+        }
+
+        const title = tab.title || tab.url.split("/").pop() || "PDF Document";
+        sendResponse({
+          success: true,
+          data: { content, title, url: tab.url },
+        });
+      } catch (err) {
+        sendResponse({
+          error: `Failed to extract PDF content: ${err.message}`,
+        });
+      }
       return;
     }
 
