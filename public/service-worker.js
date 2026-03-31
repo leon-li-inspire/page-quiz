@@ -66,13 +66,11 @@ function isPdfUrl(url) {
 async function extractPdfText(url) {
   console.log("[PDF] Starting extraction for:", url);
 
-  // Ensure offscreen document exists
-  let created = false;
+  // Step 1: Ensure offscreen document exists
   try {
     const existingContexts = await chrome.runtime.getContexts({
       contextTypes: ["OFFSCREEN_DOCUMENT"],
     });
-    console.log("[PDF] Existing offscreen contexts:", existingContexts.length);
     if (existingContexts.length === 0) {
       console.log("[PDF] Creating offscreen document...");
       await chrome.offscreen.createDocument({
@@ -80,11 +78,7 @@ async function extractPdfText(url) {
         reasons: ["DOM_PARSER"],
         justification: "Parse PDF content using pdf.js",
       });
-      created = true;
-      console.log(
-        "[PDF] Offscreen document created, waiting for it to initialize...",
-      );
-      // Wait for the offscreen document to fully load and register its listener
+      console.log("[PDF] Offscreen document created, waiting for init...");
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
   } catch (err) {
@@ -92,61 +86,29 @@ async function extractPdfText(url) {
     throw new Error("Failed to create offscreen document: " + err.message);
   }
 
-  // Send message to offscreen document with retry logic
-  const maxRetries = 3;
-  let lastError = null;
+  // Step 2: Send URL to offscreen document — it fetches and extracts text
+  console.log("[PDF] Sending EXTRACT_PDF message to offscreen...");
+  const response = await chrome.runtime.sendMessage({
+    target: "offscreen",
+    type: "EXTRACT_PDF",
+    url: url,
+  });
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(
-        "[PDF] Sending EXTRACT_PDF_TEXT message (attempt " +
-          attempt +
-          "/" +
-          maxRetries +
-          ")",
-      );
-      const response = await chrome.runtime.sendMessage({
-        target: "offscreen",
-        type: "EXTRACT_PDF_TEXT",
-        url: url,
-      });
+  console.log(
+    "[PDF] Got response: success=" +
+      (response ? response.success : "null") +
+      " text=" +
+      (response && response.text ? response.text.length : 0) +
+      " chars",
+  );
 
-      console.log(
-        "[PDF] Got response:",
-        JSON.stringify(response).substring(0, 200),
-      );
-
-      if (response && response.success) {
-        return response.text;
-      }
-
-      if (response && response.error) {
-        throw new Error(response.error);
-      }
-
-      // Response was undefined — offscreen doc listener not ready yet
-      lastError = new Error(
-        "No response from offscreen document (attempt " + attempt + ")",
-      );
-      console.warn("[PDF]", lastError.message);
-
-      if (attempt < maxRetries) {
-        console.log("[PDF] Retrying in 1 second...");
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-    } catch (err) {
-      // If this is a real error (not just a missing response), throw immediately
-      if (err.message && !err.message.startsWith("No response")) {
-        throw err;
-      }
-      lastError = err;
-    }
+  if (!response || !response.success) {
+    throw new Error(
+      (response && response.error) || "Failed to extract PDF text",
+    );
   }
 
-  throw (
-    lastError ||
-    new Error("Failed to extract PDF text after " + maxRetries + " attempts")
-  );
+  return { text: response.text || "", images: null };
 }
 
 // Extract page content by injecting a script into the active tab
@@ -164,8 +126,8 @@ async function handleGetPageContent(sendResponse) {
     // Handle PDF files
     if (isPdfUrl(tab.url)) {
       try {
-        let content = await extractPdfText(tab.url);
-        content = content
+        const pdfResult = await extractPdfText(tab.url);
+        let content = (pdfResult.text || "")
           .replace(/\n{3,}/g, "\n\n")
           .replace(/[ \t]+/g, " ")
           .trim()
@@ -296,8 +258,8 @@ async function handleGetPageContent(sendResponse) {
       // Fallback: if script injection fails, try PDF extraction
       // This handles cases where Chrome's PDF viewer blocks script injection
       try {
-        let content = await extractPdfText(tab.url);
-        content = content
+        const pdfResult = await extractPdfText(tab.url);
+        let content = (pdfResult.text || "")
           .replace(/\n{3,}/g, "\n\n")
           .replace(/[ \t]+/g, " ")
           .trim()

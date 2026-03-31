@@ -5,31 +5,32 @@ console.log("[Offscreen] pdf.js loaded, version:", pdfjsLib.version);
 console.log("[Offscreen] Registering message listener...");
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log(
-    "[Offscreen] Received message:",
-    JSON.stringify(message).substring(0, 200),
-  );
+  if (message.target !== "offscreen") return;
 
-  if (message.target !== "offscreen") {
-    console.log("[Offscreen] Ignoring message (target is not 'offscreen')");
+  console.log("[Offscreen] Received message type:", message.type);
+
+  if (message.type === "PING") {
+    console.log("[Offscreen] Responding to PING");
+    sendResponse({ pong: true });
     return;
   }
 
-  if (message.type === "EXTRACT_PDF_TEXT") {
+  if (message.type === "EXTRACT_PDF") {
     console.log(
-      "[Offscreen] Starting PDF text extraction for:",
+      "[Offscreen] Fetching and processing PDF from URL:",
       message.url,
     );
-    extractPdfText(message.url)
-      .then((text) => {
+    fetchAndExtractText(message.url)
+      .then((result) => {
         console.log(
-          "[Offscreen] Extraction complete, text length:",
-          text.length,
+          "[Offscreen] Extraction complete, text:",
+          result.text.length,
+          "chars",
         );
-        sendResponse({ success: true, text });
+        sendResponse({ success: true, text: result.text });
       })
       .catch((err) => {
-        console.error("[Offscreen] Extraction error:", err.message);
+        console.error("[Offscreen] Error:", err.message);
         sendResponse({ success: false, error: err.message });
       });
     return true;
@@ -38,13 +39,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 console.log("[Offscreen] Message listener registered and ready.");
 
-async function extractPdfText(url) {
+async function fetchAndExtractText(url) {
   const cleanUrl = url.split("#")[0];
   console.log("[Offscreen] Fetching PDF from:", cleanUrl);
 
   const response = await fetch(cleanUrl);
   if (!response.ok) {
-    throw new Error(`Failed to fetch PDF: ${response.status}`);
+    throw new Error("Failed to fetch PDF: " + response.status);
   }
 
   const arrayBuffer = await response.arrayBuffer();
@@ -54,7 +55,11 @@ async function extractPdfText(url) {
     "bytes",
   );
 
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await pdfjsLib.getDocument({
+    data: arrayBuffer,
+    disableAutoFetch: true,
+    isEvalSupported: false,
+  }).promise;
   console.log("[Offscreen] PDF parsed, pages:", pdf.numPages);
 
   let fullText = "";
@@ -63,9 +68,17 @@ async function extractPdfText(url) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
     const pageText = content.items.map((item) => item.str).join(" ");
-    console.log("[Offscreen] Page", i, "extracted:", pageText.length, "chars");
+    console.log("[Offscreen] Page", i, "text:", pageText.length, "chars");
     fullText += pageText + "\n\n";
   }
 
-  return fullText.trim();
+  fullText = fullText.trim();
+
+  if (fullText.length < 50) {
+    throw new Error(
+      "Could not extract readable text from this PDF. It may be a scanned document or image-based PDF without selectable text. Try a PDF with selectable text instead.",
+    );
+  }
+
+  return { text: fullText };
 }
