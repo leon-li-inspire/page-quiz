@@ -3,15 +3,21 @@
   "name": "PageQuiz",
   "version": "1.0.0",
   "description": "Generate quizzes from any web page using AI",
-  "permissions": ["sidePanel", "activeTab", "storage", "scripting", "tabs"],
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "storage",
+    "scripting",
+    "tabs",
+    "offscreen"
+  ],
   "host_permissions": ["<all_urls>"],
   "side_panel": {
     "default_path": "sidepanel.html"
   },
   "options_page": "options.html",
   "background": {
-    "service_worker": "service-worker.js",
-    "type": "module"
+    "service_worker": "service-worker.js"
   },
   "action": {
     "default_title": "PageQuiz"

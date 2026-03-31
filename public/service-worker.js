@@ -1,8 +1,3 @@
-import * as pdfjsLib from "./pdf.min.mjs";
-
-// Configure pdf.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = "./pdf.worker.min.mjs";
-
 // Open side panel when extension icon is clicked
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
@@ -60,28 +55,32 @@ function isPdfUrl(url) {
   }
 }
 
-// Extract text from a PDF via pdf.js
+// Extract text from a PDF using an offscreen document (pdf.js can't run in service workers)
 async function extractPdfText(url) {
-  // Strip any fragment (e.g. #page=2 or #:~:text=...)
-  const cleanUrl = url.split("#")[0];
-
-  const response = await fetch(cleanUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch PDF: ${response.status}`);
-  }
-  const arrayBuffer = await response.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-  let fullText = "";
-  const maxPages = Math.min(pdf.numPages, 30); // cap at 30 pages
-  for (let i = 1; i <= maxPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items.map((item) => item.str).join(" ");
-    fullText += pageText + "\n\n";
+  // Ensure offscreen document exists
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT"],
+  });
+  if (existingContexts.length === 0) {
+    await chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: ["DOM_PARSER"],
+      justification: "Parse PDF content using pdf.js",
+    });
   }
 
-  return fullText.trim();
+  // Send message to offscreen document and wait for response
+  const response = await chrome.runtime.sendMessage({
+    target: "offscreen",
+    type: "EXTRACT_PDF_TEXT",
+    url: url,
+  });
+
+  if (!response || !response.success) {
+    throw new Error(response?.error || "Failed to extract PDF text");
+  }
+
+  return response.text;
 }
 
 // Extract page content by injecting a script into the active tab
