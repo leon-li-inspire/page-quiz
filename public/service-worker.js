@@ -49,7 +49,14 @@ function isPdfUrl(url) {
   if (!url) return false;
   try {
     const u = new URL(url);
-    return u.pathname.toLowerCase().endsWith(".pdf");
+    const path = u.pathname.toLowerCase();
+    // Direct .pdf extension
+    if (path.endsWith(".pdf")) return true;
+    // Common PDF URL patterns (arxiv, etc.)
+    if (path.includes("/pdf/")) return true;
+    // URLs with .pdf before query/fragment/version suffix (e.g., paper.pdf?dl=1)
+    if (path.match(/\.pdf[^/]*$/)) return true;
+    return false;
   } catch {
     return false;
   }
@@ -185,99 +192,139 @@ async function handleGetPageContent(sendResponse) {
       return;
     }
 
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => {
-        // Remove noisy elements before extracting text
-        const noisySelectors = [
-          "nav",
-          "header",
-          "footer",
-          '[role="navigation"]',
-          '[role="banner"]',
-          '[role="contentinfo"]',
-          ".comments",
-          "#comments",
-          '[class*="comment"]',
-          '[class*="Comment"]',
-          ".sidebar",
-          "#sidebar",
-          '[class*="sidebar"]',
-          '[class*="Sidebar"]',
-          ".nav",
-          ".menu",
-          ".footer",
-          ".header",
-          '[class*="cookie"]',
-          '[class*="popup"]',
-          '[class*="modal"]',
-          '[class*="banner"]',
-          '[class*="ad-"]',
-          '[class*="social"]',
-          '[class*="share"]',
-          '[class*="related"]',
-          '[class*="newsletter"]',
-        ];
+    let results;
+    try {
+      results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          // Remove noisy elements before extracting text
+          const noisySelectors = [
+            "nav",
+            "header",
+            "footer",
+            '[role="navigation"]',
+            '[role="banner"]',
+            '[role="contentinfo"]',
+            ".comments",
+            "#comments",
+            '[class*="comment"]',
+            '[class*="Comment"]',
+            ".sidebar",
+            "#sidebar",
+            '[class*="sidebar"]',
+            '[class*="Sidebar"]',
+            ".nav",
+            ".menu",
+            ".footer",
+            ".header",
+            '[class*="cookie"]',
+            '[class*="popup"]',
+            '[class*="modal"]',
+            '[class*="banner"]',
+            '[class*="ad-"]',
+            '[class*="social"]',
+            '[class*="share"]',
+            '[class*="related"]',
+            '[class*="newsletter"]',
+          ];
 
-        // Clone the document body so we can remove noisy elements without affecting the page
-        const clone = document.body.cloneNode(true);
-        for (const sel of noisySelectors) {
-          clone.querySelectorAll(sel).forEach((el) => el.remove());
-        }
-
-        // Try progressively broader selectors on the cleaned clone
-        const contentSelectors = [
-          "article",
-          '[role="article"]',
-          ".post-content",
-          ".article-content",
-          ".entry-content",
-          ".blog-content",
-          ".prose",
-          ".markdown-body",
-          ".post-body",
-          ".article-body",
-          ".content-body",
-          "main article",
-          "main",
-          '[role="main"]',
-        ];
-
-        let content = "";
-        for (const selector of contentSelectors) {
-          const el = clone.querySelector(selector);
-          if (el && el.innerText && el.innerText.trim().length > 100) {
-            content = el.innerText.trim();
-            break;
+          // Clone the document body so we can remove noisy elements without affecting the page
+          const clone = document.body.cloneNode(true);
+          for (const sel of noisySelectors) {
+            clone.querySelectorAll(sel).forEach((el) => el.remove());
           }
-        }
 
-        // Fallback: use the cleaned clone's body text
-        if (!content || content.trim().length < 100) {
-          content = clone.innerText || "";
-        }
+          // Try progressively broader selectors on the cleaned clone
+          const contentSelectors = [
+            "article",
+            '[role="article"]',
+            ".post-content",
+            ".article-content",
+            ".entry-content",
+            ".blog-content",
+            ".prose",
+            ".markdown-body",
+            ".post-body",
+            ".article-body",
+            ".content-body",
+            "main article",
+            "main",
+            '[role="main"]',
+          ];
 
-        // Clean up the text: collapse whitespace, remove excessive blank lines
+          let content = "";
+          for (const selector of contentSelectors) {
+            const el = clone.querySelector(selector);
+            if (el && el.innerText && el.innerText.trim().length > 100) {
+              content = el.innerText.trim();
+              break;
+            }
+          }
+
+          // Fallback: use the cleaned clone's body text
+          if (!content || content.trim().length < 100) {
+            content = clone.innerText || "";
+          }
+
+          // Clean up the text: collapse whitespace, remove excessive blank lines
+          content = content
+            .replace(/\n{3,}/g, "\n\n")
+            .replace(/[ \t]+/g, " ")
+            .trim();
+
+          // Truncate to ~10000 chars to stay within token limits
+          content = content.substring(0, 10000);
+
+          return {
+            content,
+            title: document.title,
+            url: window.location.href,
+          };
+        },
+      });
+
+      if (results && results[0]) {
+        sendResponse({ success: true, data: results[0].result });
+      } else {
+        sendResponse({ error: "Failed to extract content" });
+      }
+    } catch (scriptErr) {
+      console.warn(
+        "[Content] Script injection failed, trying PDF extraction as fallback:",
+        scriptErr.message,
+      );
+      // Fallback: if script injection fails, try PDF extraction
+      // This handles cases where Chrome's PDF viewer blocks script injection
+      try {
+        let content = await extractPdfText(tab.url);
         content = content
           .replace(/\n{3,}/g, "\n\n")
           .replace(/[ \t]+/g, " ")
-          .trim();
+          .trim()
+          .substring(0, 10000);
 
-        // Truncate to ~10000 chars to stay within token limits
-        content = content.substring(0, 10000);
+        if (!content || content.length < 50) {
+          sendResponse({
+            error:
+              "Could not extract content. If this is a PDF, it may be scanned/image-based without embedded text.",
+          });
+          return;
+        }
 
-        return {
-          content,
-          title: document.title,
-          url: window.location.href,
-        };
-      },
-    });
-
-    if (results && results[0]) {
-      sendResponse({ success: true, data: results[0].result });
-    } else {
-      sendResponse({ error: "Failed to extract content" });
+        const title = tab.title || tab.url.split("/").pop() || "PDF Document";
+        sendResponse({
+          success: true,
+          data: { content, title, url: tab.url },
+        });
+      } catch (pdfErr) {
+        sendResponse({
+          error:
+            scriptErr.message +
+            " (PDF fallback also failed: " +
+            pdfErr.message +
+            ")",
+        });
+      }
     }
   } catch (err) {
     sendResponse({ error: err.message });
