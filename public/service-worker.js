@@ -57,30 +57,89 @@ function isPdfUrl(url) {
 
 // Extract text from a PDF using an offscreen document (pdf.js can't run in service workers)
 async function extractPdfText(url) {
+  console.log("[PDF] Starting extraction for:", url);
+
   // Ensure offscreen document exists
-  const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: ["OFFSCREEN_DOCUMENT"],
-  });
-  if (existingContexts.length === 0) {
-    await chrome.offscreen.createDocument({
-      url: "offscreen.html",
-      reasons: ["DOM_PARSER"],
-      justification: "Parse PDF content using pdf.js",
+  let created = false;
+  try {
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
     });
+    console.log("[PDF] Existing offscreen contexts:", existingContexts.length);
+    if (existingContexts.length === 0) {
+      console.log("[PDF] Creating offscreen document...");
+      await chrome.offscreen.createDocument({
+        url: "offscreen.html",
+        reasons: ["DOM_PARSER"],
+        justification: "Parse PDF content using pdf.js",
+      });
+      created = true;
+      console.log(
+        "[PDF] Offscreen document created, waiting for it to initialize...",
+      );
+      // Wait for the offscreen document to fully load and register its listener
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  } catch (err) {
+    console.error("[PDF] Error creating offscreen document:", err);
+    throw new Error("Failed to create offscreen document: " + err.message);
   }
 
-  // Send message to offscreen document and wait for response
-  const response = await chrome.runtime.sendMessage({
-    target: "offscreen",
-    type: "EXTRACT_PDF_TEXT",
-    url: url,
-  });
+  // Send message to offscreen document with retry logic
+  const maxRetries = 3;
+  let lastError = null;
 
-  if (!response || !response.success) {
-    throw new Error(response?.error || "Failed to extract PDF text");
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(
+        "[PDF] Sending EXTRACT_PDF_TEXT message (attempt " +
+          attempt +
+          "/" +
+          maxRetries +
+          ")",
+      );
+      const response = await chrome.runtime.sendMessage({
+        target: "offscreen",
+        type: "EXTRACT_PDF_TEXT",
+        url: url,
+      });
+
+      console.log(
+        "[PDF] Got response:",
+        JSON.stringify(response).substring(0, 200),
+      );
+
+      if (response && response.success) {
+        return response.text;
+      }
+
+      if (response && response.error) {
+        throw new Error(response.error);
+      }
+
+      // Response was undefined — offscreen doc listener not ready yet
+      lastError = new Error(
+        "No response from offscreen document (attempt " + attempt + ")",
+      );
+      console.warn("[PDF]", lastError.message);
+
+      if (attempt < maxRetries) {
+        console.log("[PDF] Retrying in 1 second...");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    } catch (err) {
+      // If this is a real error (not just a missing response), throw immediately
+      if (err.message && !err.message.startsWith("No response")) {
+        throw err;
+      }
+      lastError = err;
+    }
   }
 
-  return response.text;
+  throw (
+    lastError ||
+    new Error("Failed to extract PDF text after " + maxRetries + " attempts")
+  );
 }
 
 // Extract page content by injecting a script into the active tab
